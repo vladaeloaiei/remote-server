@@ -1,0 +1,112 @@
+/******************************************
+ * PROJECT
+ *****************************************/
+plugins {
+    id 'java'
+    id 'idea'
+    id 'cpp'
+    id 'application'
+}
+
+group 'remote-server'
+version '1.0'
+
+sourceCompatibility = 1.8
+mainClassName = 'main.ApplicationCore'
+
+run {
+    systemProperty 'java.library.path', 'native-libs'
+}
+
+/******************************************
+ * JAVA
+ *****************************************/
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile 'com.intellij:forms_rt:7.0.3'
+    implementation files('libs/byte-remote-object-1.0.jar')
+}
+
+compileJava {
+    options.warnings = true
+    options.deprecation = true
+    options.compilerArgs += ['-proc:none']
+}
+
+/******************************************
+ * NATIVE
+ *****************************************/
+
+/* PATHS */
+def SDK_INCLUDE_DIR = this.properties['sdk.include.dir']
+def SDK_LIB_DIR = this.properties['sdk.lib.dir']
+def SYSTEM_LIB_DIR = this.properties['system.lib.dir']
+def JNI_INCLUDE_DIR = this.properties['jni.include.dir']
+
+println 'Using sdk include directory: ' + SDK_INCLUDE_DIR
+println 'Using sdk lib directory: ' + SDK_LIB_DIR
+println 'Using system lib directory: ' + SYSTEM_LIB_DIR
+println 'Using JNI include directory: ' + JNI_INCLUDE_DIR
+
+/* BUILD */
+model {
+    platforms {
+        x64 {
+            //noinspection GroovyAssignabilityCheck
+            architecture 'x64'
+        }
+    }
+    toolChains {
+        //noinspection GroovyAssignabilityCheck
+        visualCpp(VisualCpp) {
+            eachPlatform {
+                cppCompiler.withArguments { args ->
+                    args << "-I${SDK_INCLUDE_DIR}\\crt"
+                    args << "-I${SDK_INCLUDE_DIR}\\ucrt"
+                    args << "-I${SDK_INCLUDE_DIR}\\um"
+                    args << "-I${JNI_INCLUDE_DIR}"
+                    args << "-I${JNI_INCLUDE_DIR}\\win32"
+                }
+                linker.withArguments { args ->
+                    args << "/LIBPATH:${SDK_LIB_DIR}\\ucrt\\x64"
+                    args << "/LIBPATH:${SDK_LIB_DIR}\\um\\x64"
+                    args << "/LIBPATH:${SYSTEM_LIB_DIR}"
+                    args << "ole32.lib"
+                }
+            }
+        }
+    }
+
+    //noinspection GroovyAssignabilityCheck
+    components {
+        'volume-control-win64'(NativeLibrarySpec) {
+            targetPlatform 'x64'
+
+            sources {
+                cpp {
+                    source {
+                        srcDir 'src/main/native'
+                        include '**/*.cpp'
+                    }
+                }
+            }
+
+            buildTypes {
+                debug
+                release
+            }
+        }
+    }
+}
+
+/* Copy native lib */
+task copyNativeLib(type: Copy) {
+    from "$projectDir/build/libs/volume-control-win64/shared/release/volume-control-win64.dll"
+    into "$projectDir/native-libs"
+}
+
+build.finalizedBy(copyNativeLib)
